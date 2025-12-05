@@ -1,0 +1,1 @@
+Checkpoint outputs (80) do not match expected vocab+blank size (38). Proceeding with checkpoint size; verify checkpoint/vocab pairing.

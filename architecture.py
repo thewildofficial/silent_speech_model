@@ -11,12 +11,31 @@ from torchaudio.models.decoder import ctc_decoder
 from torchaudio.functional import edit_distance
 # from s4 import S4
 from data_utils import TextTransform, token_error_rate
-from magneto.models.hyena import HyenaOperator
-from flash_attn.modules.block import Block
-from magneto.models.s4d import S4D
+
+# Optional dependencies; provide stubs if unavailable
+try:
+    from magneto.models.hyena import HyenaOperator
+except ImportError:
+    class HyenaOperator:  # type: ignore
+        def __init__(self, *_, **__):
+            raise ImportError("magneto not installed; HyenaOperator unavailable")
+
+try:
+    from magneto.models.s4d import S4D
+except ImportError:
+    class S4D:  # type: ignore
+        def __init__(self, *_, **__):
+            raise ImportError("magneto not installed; S4D unavailable")
+
+try:
+    from flash_attn.modules.block import Block
+except ImportError:
+    class Block:  # type: ignore
+        def __init__(self, *_, **__):
+            raise ImportError("flash-attn not installed; Block unavailable")
 
 from pytorch_lightning.profilers import PassThroughProfiler
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Tuple, List, Union
 from dataloaders import split_batch_into_emg_neural_audio
 from contrastive import (
@@ -161,19 +180,21 @@ class XtoText(pl.LightningModule):
         self.step_silent_emg_int_pred = []
 
     def _init_ctc_decoder(self):
+        lexicon_path = self.lexicon_file
+        lm_path = os.path.join(self.lm_directory, "lm.binary")
+        if not os.path.exists(lexicon_path):
+            lexicon_path = None
+        if not os.path.exists(lm_path):
+            lm_path = None
         self.ctc_decoder = ctc_decoder(
-            lexicon=self.lexicon_file,
-            # tokens      = [x.lower() for x in self.text_transform.chars] + ['_'],
+            lexicon=lexicon_path,
             tokens=self.text_transform.chars + ["_"],
-            # lm      = os.path.join(self.lm_directory, '4gram_lm.bin'),
-            lm=os.path.join(self.lm_directory, "lm.binary"),
+            lm=lm_path,
             blank_token="_",
             sil_token="|",
             nbest=1,
-            lm_weight=2,  # default is 2; Gaddy sets to 1.85
-            # word_score  = -3,
-            # sil_score   = -2,
-            beam_size=150,  # SET TO 150 during inference
+            lm_weight=2,
+            beam_size=150,
         )
 
     def ctc_loss(self, pred, target, pred_len, target_len):
@@ -630,7 +651,18 @@ class Model(GaddyBase):
         profiler=None,
         weight_decay=0.0,
     ):
-        super().__init__(text_transform, lm_directory)
+        cfg = XtoTextConfig(
+            steps_per_epoch=steps_per_epoch,
+            lm_directory=lm_directory,
+            togglePhones=getattr(text_transform, "togglePhones", True),
+            learning_rate_warmup=learning_rate_warmup,
+            weight_decay=weight_decay,
+            learning_rate=lr,
+            gradient_accumulation_steps=1,
+            num_train_epochs=epochs,
+            precision=32,
+        )
+        super().__init__(cfg, text_transform)
         self.profiler = profiler or PassThroughProfiler()
         self.conv_blocks = nn.Sequential(
             ResBlock(8, model_size, 2),
@@ -638,13 +670,12 @@ class Model(GaddyBase):
             ResBlock(model_size, model_size, 2),
         )
         self.w_raw_in = nn.Linear(model_size, model_size)
-        encoder_layer = TransformerEncoderLayer(
+        encoder_layer = nn.TransformerEncoderLayer(
             d_model=model_size,
             nhead=8,
-            relative_positional=True,
-            relative_positional_distance=100,
             dim_feedforward=3072,
             dropout=dropout,
+            batch_first=True,
         )
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers)
         self.w_out = nn.Linear(model_size, num_outs)
@@ -1161,7 +1192,9 @@ class MONAConfig(XtoTextConfig):
     use_dtw: bool = True
     use_crossCon: bool = True
     use_supTcon: bool = True
-    batch_class_proportions: np.ndarray = np.array([0.16, 0.42, 0.42])
+    batch_class_proportions: np.ndarray = field(
+        default_factory=lambda: np.array([0.16, 0.42, 0.42])
+    )
     latent_affine: bool = False  # so emg&audio latent are both unit norm
 
     def __post_init__(self):

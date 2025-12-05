@@ -1,5 +1,6 @@
 import re
 import os
+from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 import random
@@ -34,8 +35,11 @@ from dataloaders import cache_dataset
 
 # DATA_FOLDER    = '/scratch/GaddyPaper'
 DATA_FOLDER = os.path.join(os.environ["SCRATCH"], "GaddyPaper")
-# project_folder = '/home/tyler/code/silent_speech'
-project_folder = "/home/users/tbenst/code/silent_speech/"
+
+# Allow overriding project folder via env; default to repo root
+project_folder = os.environ.get(
+    "PROJECT_FOLDER", str(Path(__file__).resolve().parent)
+)
 
 REMOVE_CHANNELS = []
 SILENT_DATA_DIRECTORIES = [f"{DATA_FOLDER}/emg_data/silent_parallel_data"]
@@ -332,6 +336,10 @@ class PreprocessedSizeAwareSampler(torch.utils.data.Sampler):
 
     def __len__(self):
         return self.approx_len
+
+
+# Backward-compatibility alias for callers expecting SizeAwareSampler
+SizeAwareSampler = PreprocessedSizeAwareSampler
 
 
 class EMGDataset(torch.utils.data.Dataset):
@@ -717,11 +725,11 @@ class PreprocessedEMGDataset(torch.utils.data.Dataset):
         parallel_emg = []
         for ex in batch:
             if ex["silent"]:
-                audio_features.append(ex["parallel_voiced_audio_features"])
-                audio_feature_lengths.append(
-                    ex["parallel_voiced_audio_features"].shape[0]
-                )
-                parallel_emg.append(ex["parallel_voiced_emg"])
+                p_audio = ex.get("parallel_voiced_audio_features", np.zeros((1,)))
+                p_emg = ex.get("parallel_voiced_emg", np.zeros((1,)))
+                audio_features.append(p_audio)
+                audio_feature_lengths.append(p_audio.shape[0] if hasattr(p_audio, "shape") else 1)
+                parallel_emg.append(p_emg)
             else:
                 audio_features.append(ex["audio_features"])
                 audio_feature_lengths.append(ex["audio_features"].shape[0])

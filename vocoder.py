@@ -1,13 +1,17 @@
 import os
 import json
 import sys
+from pathlib import Path
 import numpy as np
 
 import torch
 
-sys.path.append('./hifi_gan')
-from env import AttrDict
-from models import Generator
+# Ensure hifi_gan modules are importable (local package)
+# Use absolute path to handle spaces in project path.
+HIFIGAN_DIR = (Path(__file__).resolve().parent / "hifi_gan").resolve()
+sys.path.insert(0, str(HIFIGAN_DIR))
+from env import AttrDict  # type: ignore
+from models import Generator  # type: ignore
 
 from absl import flags
 FLAGS = flags.FLAGS

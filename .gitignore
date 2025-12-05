@@ -5,6 +5,18 @@ lightning_logs/
 .vscode/
 .neptunebak/
 *.out
+.DS_Store
+
+# Large/local artifacts (do not version)
+artifacts/
+# Local/system cruft
+.DS_Store
+
+# Large/local artifacts (do not version)
+artifacts/model.pt
+artifacts/emg_data.tar.gz
+artifacts/synthetic/
+artifacts/xinference_artifacts/
 
 # Created by https://www.toptal.com/developers/gitignore/api/python
 # Edit at https://www.toptal.com/developers/gitignore?templates=python
