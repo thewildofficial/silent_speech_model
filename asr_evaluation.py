@@ -53,4 +53,6 @@ def evaluate(testset, audio_directory):
     
     logging.info(f'targets: {targets}')
     logging.info(f'predictions: {predictions}')
-    logging.info(f'wer: {jiwer.wer(targets, predictions)}')
+    wer_value = jiwer.wer(targets, predictions)
+    logging.info(f'wer: {wer_value}')
+    return wer_value
